@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<strings>
+	<string id="30000">Kvalita videa</string>
+	<string id="30001">Zeptat se</string>
+	<string id="30002">Kvalita %s není dostupná- přehrává se %s</string>
+	<string id="30003">Video není dostupné</string>
+	<string id="30004">Další epizody pořadu</string>
+	<string id="30005">Vybrat jinou kvalitu</string>
+	<string id="30006">Nejnovější videa</string>
+	<string id="30007">Všechny pořady</string>
+	<string id="30008">Pohádky</string>
+	<string id="30240">240p</string>
+	<string id="30360">360p</string>
+	<string id="30480">480p</string>
+	<string id="30720">720p</string>
+	<string id="31080">1080p</string>
+</strings>

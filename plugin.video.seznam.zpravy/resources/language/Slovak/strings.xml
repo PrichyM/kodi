@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<strings>
+	<string id="30000">Kvalita videa</string>
+	<string id="30001">Spýtať sa</string>
+	<string id="30002">Kvalita %s nedostupná - prehráva sa %s</string>
+	<string id="30003">Video nie je dostupné</string>
+	<string id="30004">Ďalšie epizódy relácie</string>
+	<string id="30005">Vybrať inú kvalitu</string>
+	<string id="30006">Najnovšie videá</string>
+	<string id="30007">Všetky relácie</string>
+	<string id="30008">Rozprávky</string>
+	<string id="30240">240p</string>
+	<string id="30360">360p</string>
+	<string id="30480">480p</string>
+	<string id="30720">720p</string>
+	<string id="31080">1080p</string>
+</strings>
