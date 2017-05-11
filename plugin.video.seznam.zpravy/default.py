@@ -4,6 +4,7 @@ import urllib2,urllib,re,os,sys
 import xbmcplugin,xbmcgui,xbmcaddon
 import simplejson as json
 from time import time
+import operator
 
 __baseurl__ = 'https://apiclanky.seznam.cz/v1'
 _UserAgent_ = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
@@ -144,7 +145,7 @@ def html2text(html):
     return text
 
 def listContent():
-    addDir(u'Vše', __baseurl__ + '/unitedarticletimelines?service=zpravy&maxArticles=' + str(LIMIT), MODE_LIST_SHOWS, icon)
+    addDir(u'Vše', __baseurl__ + '/unitedarticletimelines?service=zpravy', MODE_LIST_SHOWS, icon)
     data = getJsonDataFromUrl(__baseurl__ + '/sections?service=zpravy&visible=true&embedded=layout')
     for item in data[u'_items']:
         addDir(item[u'name'], __baseurl__ + '/articles?limit=' + str(LIMIT) + '&sections=' + item[u'_id'] + '&service=zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
@@ -155,9 +156,10 @@ def listShows(url):
     data = getJsonDataFromUrl(url)
     items = data[u'_items']
     #logDbg(items)
-    for item in items:
-        if u'articles' in item:
-            for article in item[u'articles']:
+    for item in items:    
+        logDbg(item[u'title'])
+        if u'documents' in item:
+            for article in item[u'documents']:
                 addDir(article[u'title'], __baseurl__ + '/articles/' + article[u'_id'] + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date':article[u'dateOfPublication']})
         else:
             addDir(item[u'title'], __baseurl__ + '/articles/' + item[u'_id'] + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date':item[u'dateOfPublication']})
@@ -175,13 +177,21 @@ def listSeasons(url):
             elif prop[u'media'] and (u'liveStreamUrl' in prop[u'media']):
                 addUnresolvedLink(u'LIVE: ' + prop[u'media'][u'title'], prop[u'media'][u'liveStreamUrl'] + 'spl,1,https,VOD', 'https:' + prop[u'media'][u'url'], prop[u'media'][u'title'], info={'date':data[u'dateOfPublication']})
 
+def extract_time(json):
+    try:
+        # Also convert to int since update_time will be string.  When comparing
+        # strings, "10" is smaller than "2".
+        logDbg(json)
+        return int(json['page']['update_time'])
+    except KeyError:
+        return 0
+
 def resolveVideoLink(url,name,popis):
     data = getJsonDataFromUrl(url)
-    q_index = len(quality_settings)
-    if quality_index:
-        q_index = quality_index
-
-    quality = quality_settings[q_index - 1]
+    qualities = sorted(data[u'pls'][u'hls'][u'qualities'], key=operator.itemgetter(1), reverse=False)
+    logDbg("available qualities: {}".format(qualities))
+    quality = qualities[0]
+    logDbg("max quality: {}".format(quality))
     liz = xbmcgui.ListItem(path=data[u'data'][u'mp4'][quality][u'url'], iconImage="DefaultVideo.png")
     liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": popis} )
     liz.setProperty('IsPlayable', 'true')
