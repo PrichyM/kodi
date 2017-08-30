@@ -18,7 +18,7 @@ fanart = os.path.join( home, 'fanart.jpg' )
 scriptname = addon.getAddonInfo('name')
 quality_index = int(addon.getSetting('quality'))
 quality_settings = ["240p", "360p", "480p", "720p", "1080p"]
-LIMIT = 30
+LIMIT = 60
 
 MODE_LIST_SHOWS = 1
 MODE_LIST_SEASON = 2
@@ -145,10 +145,11 @@ def html2text(html):
     return text
 
 def listContent():
-    addDir(u'Vše', __baseurl__ + '/unitedarticletimelines?service=zpravy', MODE_LIST_SHOWS, icon)
+    addDir(u'Vše', __baseurl__ + '/documenttimelines?service=zpravy', MODE_LIST_SHOWS, icon)
     data = getJsonDataFromUrl(__baseurl__ + '/sections?service=zpravy&visible=true&embedded=layout')
     for item in data[u'_items']:
-        addDir(item[u'name'], __baseurl__ + '/articles?limit=' + str(LIMIT) + '&sections=' + item[u'_id'] + '&service=zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
+        addDir(item[u'name'], __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_' + item[u'_id'] + '_zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
+        #addDir(item[u'name'], __baseurl__ + '/articles?limit=' + str(LIMIT) + '&sections=' + item[u'_id'] + '&service=zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
     #addDir(getLS(30007),__baseurl__ + '/catalogue',MODE_LIST_SHOWS,icon)
     #addDir(getLS(30008),__baseurl__ + '/catalogue?channels=3',MODE_LIST_SHOWS,icon)
 
@@ -160,9 +161,9 @@ def listShows(url):
         logDbg(item[u'title'])
         if u'documents' in item:
             for article in item[u'documents']:
-                addDir(article[u'title'], __baseurl__ + '/articles/' + article[u'_id'] + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date':article[u'dateOfPublication']})
+                addDir(article[u'title'], __baseurl__ + '/documents/' + str(article['uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date':article[u'dateOfPublication']})
         else:
-            addDir(item[u'title'], __baseurl__ + '/articles/' + item[u'_id'] + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date':item[u'dateOfPublication']})
+            addDir(item[u'title'], __baseurl__ + '/documents/' + str(item[u'uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date':item[u'dateOfPublication']})
 
 def listSeasons(url):
     data = getJsonDataFromUrl(url)
