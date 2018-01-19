@@ -6,7 +6,7 @@ import simplejson as json
 from time import time
 import operator
 
-__baseurl__ = 'https://apiclanky.seznam.cz/v1'
+__baseurl__ = 'https://apizpravy.seznam.cz/v1'
 _UserAgent_ = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
 addon = xbmcaddon.Addon('plugin.video.seznam.zpravy')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
