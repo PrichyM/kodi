@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import urllib2,urllib,re,os,sys
 #from stats import *
+from hashlib import md5
 import xbmcplugin,xbmcgui,xbmcaddon
 import simplejson as json
 from time import time
@@ -12,7 +13,7 @@ addon = xbmcaddon.Addon('plugin.video.seznam.zpravy')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
 __settings__ = xbmcaddon.Addon(id='plugin.video.seznam.zpravy')
 home = xbmc.translatePath(__settings__.getAddonInfo('path')).decode("utf-8")
-icon = os.path.join( home, 'icon.png' ) 
+icon = os.path.join( home, 'icon.png' )
 nexticon = os.path.join( home, 'nextpage.png' )
 fanart = os.path.join( home, 'fanart.jpg' )
 scriptname = addon.getAddonInfo('name')
@@ -123,9 +124,11 @@ def logErr(msg):
 def makeImageUrl(rawurl):
     return 'http:'+rawurl.replace('{width}/{height}','360/360')
 
-def getJsonDataFromUrl(url):
+def getJsonDataFromUrl(url,passw=False):
     req = urllib2.Request(url)
     req.add_header('User-Agent', _UserAgent_)
+    if passw:
+        req.add_header('Api-Password', md5('fb5f58a820353bd7095de526253c14fd'+url.split('http://www.stream.cz/API')[1]+str(int(round(int(time())/3600.0/24.0)))).hexdigest())
     response = urllib2.urlopen(req)
     httpdata = response.read()
     response.close()
@@ -157,7 +160,7 @@ def listShows(url):
     data = getJsonDataFromUrl(url)
     items = data[u'_items']
     #logDbg(items)
-    for item in items:    
+    for item in items:
         logDbg(item[u'title'])
         if u'documents' in item:
             for article in item[u'documents']:
@@ -169,6 +172,10 @@ def listSeasons(url):
     data = getJsonDataFromUrl(url)
     if u'video' in data[u'caption']:
         addUnresolvedLink(data[u'title'], data[u'caption'][u'video'][u'sdn'] + 'spl,1,https,VOD', 'https:' + data[u'caption'][u'video'][u'poster'][u'url'], data[u'captionTitle'], info={'duration': data[u'caption'][u'video'][u'videoInfo'][u'durationS'], 'date':data[u'dateOfPublication']})
+    elif u'embedUrl' in data[u'caption']:
+        embed_id = str(data[u'caption'][u'embed'])
+        streamcz_json = getJsonDataFromUrl('http://www.stream.cz/API/episode_only/' + embed_id, True)
+        addUnresolvedLink(data[u'title'], streamcz_json[u'superplaylist'] + 'spl,1,https,VOD', 'https:' + data[u'caption'][u'url'], data[u'captionTitle'], embed=1, info={u'date':data[u'dateOfPublication']})
     for item in data[u'content']:
         prop = item[u'properties']
         if u'media' in prop:
@@ -187,12 +194,17 @@ def extract_time(json):
     except KeyError:
         return 0
 
-def resolveVideoLink(url,name,popis):
+def resolveVideoLink(url,name,popis,embed):
     data = getJsonDataFromUrl(url)
-    qualities = sorted(data[u'pls'][u'hls'][u'qualities'], key=operator.itemgetter(1), reverse=False)
-    logDbg("available qualities: {}".format(qualities))
-    quality = qualities[0]
-    logDbg("max quality: {}".format(quality))
+    quality = ''
+    if embed == 1 or embed == '1':
+        qualities = sorted(data[u'data'][u'mp4'].keys(), key=operator.itemgetter(1), reverse=False)
+        quality = qualities[0]
+    else:
+        qualities = sorted(data[u'pls'][u'hls'][u'qualities'], key=operator.itemgetter(1), reverse=False)
+        logDbg("available qualities: {}".format(qualities))
+        quality = qualities[0]
+        logDbg("max quality: {}".format(quality))
     liz = xbmcgui.ListItem(path=data[u'data'][u'mp4'][quality][u'url'], iconImage="DefaultVideo.png")
     liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": popis} )
     liz.setProperty('IsPlayable', 'true')
@@ -216,11 +228,11 @@ def getParams():
                 param[splitparams[0]]=splitparams[1]
     return param
 
-def composePluginUrl(url, mode, name, plot):
-    return sys.argv[0]+"?url="+urllib.quote_plus(url.encode('utf-8'))+"&mode="+str(mode)+"&name="+urllib.quote_plus(name.encode('utf-8'))+'&plot='+urllib.quote_plus(plot.encode('utf-8'))
+def composePluginUrl(url, mode, name, plot, embed=0):
+    return sys.argv[0]+"?url="+urllib.quote_plus(url.encode('utf-8'))+"&mode="+str(mode)+"&name="+urllib.quote_plus(name.encode('utf-8'))+'&plot='+urllib.quote_plus(plot.encode('utf-8'))+'&embed='+str(embed)
 
-def addItem(name,url,mode,iconimage,desc,isfolder,islatest=False,info={}):
-    u=composePluginUrl(url,mode,name, desc)
+def addItem(name,url,mode,iconimage,desc,isfolder,embed=0,islatest=False,info={}):
+    u=composePluginUrl(url, mode, name, desc, embed)
     ok=True
     liz=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
     liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": desc } )
@@ -239,7 +251,7 @@ def addItem(name,url,mode,iconimage,desc,isfolder,islatest=False,info={}):
             next_url = composePluginUrl(url,MODE_LIST_NEXT_EPISODES,name,plot)
             menuitems.append(( getLS(30004).encode('utf-8'), 'XBMC.Container.Update('+next_url+')' ))
         if quality_index != 0:
-            select_quality_url = composePluginUrl(url,MODE_VIDEOLINK,name,plot)
+            select_quality_url = composePluginUrl(url,MODE_VIDEOLINK,name,plot,embed)
             menuitems.append(( getLS(30005).encode('utf-8'), 'XBMC.Container.Update('+select_quality_url+')' ))
         liz.addContextMenuItems(menuitems)
     ok=xbmcplugin.addDirectoryItem(handle=addonHandle,url=u,listitem=liz,isFolder=isfolder)
@@ -249,10 +261,10 @@ def addDir(name,url,mode,iconimage,plot='',info={}):
     logDbg("addDir(): '"+name+"' url='"+url+"' icon='"+iconimage+"' mode='"+str(mode)+"'")
     return addItem(name,url,mode,iconimage,plot,True)
 
-def addUnresolvedLink(name,url,iconimage,plot='',islatest=False,info={}):
+def addUnresolvedLink(name,url,iconimage,plot='',islatest=False,info={},embed=0):
     mode=MODE_RESOLVE_VIDEOLINK
     logDbg("addUnresolvedLink(): '"+name+"' url='"+url+"' icon='"+iconimage+"' mode='"+str(mode)+"'")
-    return addItem(name,url,mode,iconimage,plot,False,islatest,info)
+    return addItem(name,url,mode,iconimage,plot,False,islatest,embed,info)
 
 addonHandle=int(sys.argv[1])
 params=getParams()
@@ -261,6 +273,7 @@ name=None
 thumb=None
 mode=None
 plot=''
+embed=None
 
 try:
     url=urllib.unquote_plus(params["url"])
@@ -287,7 +300,7 @@ logDbg("Plot: "+str(plot))
 if mode==None or url==None or len(url)<1:
     #STATS("OBSAH", "Function")
     listContent()
-   
+
 elif mode==MODE_LIST_SHOWS:
     #STATS("LIST_SHOWS", "Function")
     listShows(url)
@@ -302,15 +315,15 @@ elif mode==MODE_LIST_EPISODES:
 
 elif mode==MODE_VIDEOLINK:
     #STATS(name, "Item")
-    videoLink(url,name)
+    videoLink(url,name,embed=1)
 
 elif mode==MODE_RESOLVE_VIDEOLINK:
-    resolveVideoLink(url,name,plot)
+    resolveVideoLink(url,name,plot,embed=1)
     #STATS(name, "Item")
     #sys.exit(0)
 
 elif mode==MODE_LIST_NEXT_EPISODES:
     #STATS("LIST_NEXT_EPISODES", "Function")
     listNextEpisodes(url)
-    
+
 xbmcplugin.endOfDirectory(addonHandle)
