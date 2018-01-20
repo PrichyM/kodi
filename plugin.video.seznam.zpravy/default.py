@@ -150,8 +150,17 @@ def html2text(html):
 def listContent():
     addDir(u'Vše', __baseurl__ + '/documenttimelines?service=zpravy', MODE_LIST_SHOWS, icon)
     data = getJsonDataFromUrl(__baseurl__ + '/sections?service=zpravy&visible=true&embedded=layout')
+    show_name = []
     for item in data[u'_items']:
+        show_name.append(item[u'name'])
         addDir(item[u'name'], __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_' + item[u'_id'] + '_zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
+    if u'Výzva' not in show_name:
+        addDir(u'Výzva', __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_5943ae130ed0676f56d916c3_zpravy', MODE_LIST_SHOWS, icon)
+    if u'Duel' not in show_name:
+        addDir(u'Duel', __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_5943ae7fe0cf3d6bfb3df94b_zpravy', MODE_LIST_SHOWS, icon)
+    if u'Večerní zprávy' not in show_name:
+        addDir(u'Večerní zprávy', __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_5811346fcb2d9825d2c4ee92_zpravy', MODE_LIST_SHOWS, icon)
+    del show_name
 
 def listShows(url):
     data = getJsonDataFromUrl(url)
