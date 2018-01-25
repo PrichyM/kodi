@@ -176,22 +176,53 @@ def listShows(url):
 
 def listSeasons(url):
     data = getJsonDataFromUrl(url)
+    name = data[u'title']
+    stream_url = ''
+    imageicon = ''
+    title = data[u'captionTitle']
+    info = {}
     if u'video' in data[u'caption']:
-        addUnresolvedLink(data[u'title'], data[u'caption'][u'video'][u'sdn'] + 'spl,1,https,VOD', 'https:' + data[u'caption'][u'video'][u'poster'][u'url'], data[u'captionTitle'], info={'duration': data[u'caption'][u'video'][u'videoInfo'][u'durationS'], 'date':data[u'dateOfPublication']})
+        stream_url = data[u'caption'][u'video'][u'sdn'] + 'spl,1,https,VOD'
+        imageicon = 'https:' + data[u'caption'][u'video'][u'poster'][u'url']
+        info = {'duration': data[u'caption'][u'video'][u'videoInfo'][u'durationS'], 'date':data[u'dateOfPublication']}
     elif u'embedUrl' in data[u'caption']:
+        # embedded video from stream.cz
         embed_id = str(data[u'caption'][u'embed'])
-        streamcz_json = getJsonDataFromUrl('http://www.stream.cz/API/episode_only/' + embed_id, True)
-        addUnresolvedLink(data[u'title'], streamcz_json[u'superplaylist'] + 'spl,1,https,VOD', 'https:' + data[u'caption'][u'url'], data[u'captionTitle'], info={u'date':data[u'dateOfPublication']})
+        streamcz_json = getJsonDataFromUrl('http://www.stream.cz/API/episode_only/' + embed_id, passw=True)
+        stream_url = streamcz_json[u'superplaylist'] + 'spl,1,https,VOD'
+        imageicon = 'https:' + data[u'caption'][u'url']
+        info = {u'date':data[u'dateOfPublication']}
     elif u'liveStreamUrl' in data[u'caption']:
-        addUnresolvedLink(data[u'title'], data[u'caption'][u'liveStreamUrl'] + 'spl,1,https,VOD', 'https:' + data[u'caption'][u'url'], data[u'captionTitle'], info={u'date':data[u'dateOfPublication']})
+        stream_url = data[u'caption'][u'liveStreamUrl'] + 'spl,1,https,VOD'
+        imageicon = 'https:' + data[u'caption'][u'url']
+        info={u'date':data[u'dateOfPublication']}
+    if quality_index == 0:
+        addDir(name, stream_url, MODE_VIDEOLINK, imageicon)
+    else:
+        addUnresolvedLink(name, stream_url, imageicon, title, info=info)
+
     for item in data[u'content']:
         prop = item[u'properties']
         if u'media' in prop:
             #logDbg(prop)
             if prop[u'media'] and (u'video' in prop[u'media']):
-                addUnresolvedLink(prop[u'media'][u'title'], prop[u'media'][u'video'][u'sdn'] + 'spl,1,https,VOD', 'https:' + prop[u'media'][u'video'][u'poster'][u'url'], prop[u'text'], info={'duration': prop[u'media'][u'video'][u'videoInfo'][u'durationS'], 'date':data[u'dateOfPublication']})
+                name = prop[u'media'][u'title']
+                stream_url = prop[u'media'][u'video'][u'sdn'] + 'spl,1,https,VOD'
+                imageicon = 'https:' + prop[u'media'][u'video'][u'poster'][u'url']
+                title = prop[u'text']
+                info={'duration': prop[u'media'][u'video'][u'videoInfo'][u'durationS'], 'date':data[u'dateOfPublication']}
             elif prop[u'media'] and (u'liveStreamUrl' in prop[u'media']):
-                addUnresolvedLink(u'LIVE: ' + prop[u'media'][u'title'], prop[u'media'][u'liveStreamUrl'] + 'spl,1,https,VOD', 'https:' + prop[u'media'][u'url'], prop[u'media'][u'title'], info={'date':data[u'dateOfPublication']})
+                name = u'LIVE: ' + prop[u'media'][u'title']
+                stream_url = prop[u'media'][u'liveStreamUrl'] + 'spl,1,https,VOD'
+                imageicon = 'https:' + prop[u'media'][u'url']
+                title = prop[u'media'][u'title']
+                info={'date':data[u'dateOfPublication']}
+            if quality_index == 0:
+                # solution for 'always ask for quality' option
+                addDir(name, stream_url, MODE_VIDEOLINK, imageicon)
+            else:
+                # quality is set in settings
+                addUnresolvedLink(name, stream_url, imageicon, title, info=info)
 
 def extract_time(json):
     try:
