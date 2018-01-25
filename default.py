@@ -18,7 +18,7 @@ nexticon = os.path.join( home, 'nextpage.png' )
 fanart = os.path.join( home, 'fanart.jpg' )
 scriptname = addon.getAddonInfo('name')
 quality_index = int(addon.getSetting('quality'))
-quality_settings = ["240p", "360p", "480p", "720p", "1080p"]
+quality_settings = ['ask', '240p', '360p', '480p', '720p', '1080p']
 LIMIT = 60
 
 MODE_LIST_SHOWS = 1
@@ -229,6 +229,44 @@ def resolveVideoLink(url,name,popis):
     liz.setProperty( "icon", thumb )
     xbmcplugin.setResolvedUrl(handle=addonHandle, succeeded=True, listitem=liz)
 
+def selectQuality(url, name):
+    data = getJsonDataFromUrl(url)
+    qualities = data[u'data'][u'mp4']
+
+    def createOrderedList(data, quality):
+        logDbg('Quality - always ask: ' + quality)
+        try:
+            stream_url = data[u'data'][u'mp4'][quality][u'url']
+            liz = xbmcgui.ListItem(quality, iconImage="DefaultVideo.png")
+            liz.setProperty('Fanart_Image', fanart)
+            xbmcplugin.addDirectoryItem(handle=addonHandle, url=stream_url, listitem=liz)
+        except:
+            pass
+
+    if not qualities:
+        """
+        # live video
+        liveVideo(data)
+        liz = xbmcgui.ListItem(name, path=live_playlist, iconImage="DefaultVideo.png")
+        liz.setInfo(type="Video", infoLabels={"Title": name})
+        liz.setProperty('isPlayable', 'True')
+        xbmcplugin.addDirectoryItem(handle=addonHandle, url=live_playlist, listitem=liz)
+        """
+        pass
+    else:
+        # order quality heighest -> lowest
+        if '1080p' in qualities:
+            createOrderedList(data, '1080p')
+        if '720p' in qualities:
+            createOrderedList(data, '720p')
+        if '480p' in qualities:
+            createOrderedList(data, '480p')
+        if '360p' in qualities:
+            createOrderedList(data, '360p')
+        if '240p' in qualities:
+            createOrderedList(data, '240p')
+
+
 def getParams():
     param=[]
     paramstring=sys.argv[2]
@@ -331,8 +369,8 @@ elif mode==MODE_LIST_EPISODES:
     listEpisodes(url)
 
 elif mode==MODE_VIDEOLINK:
-    #STATS(name, "Item")
-    videoLink(url,name)
+    if url:
+        selectQuality(url, name)
 
 elif mode==MODE_RESOLVE_VIDEOLINK:
     resolveVideoLink(url,name,plot)

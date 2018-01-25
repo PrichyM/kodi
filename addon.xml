@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="plugin.video.seznam.zpravy"
        name="Seznam Zpravy"
-       version="0.9.3v2"
-       provider-name="Frantisek Barancik, BrozikCZ">
+       version="0.9.3v3"
+       provider-name="Frantisek Barancik, BrozikCZ, PrichyM">
   <requires>
     <import addon="xbmc.python" version="2.1.0"/>
     <import addon="script.module.simplejson"/>
