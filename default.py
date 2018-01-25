@@ -205,15 +205,29 @@ def extract_time(json):
 def resolveVideoLink(url,name,popis):
     data = getJsonDataFromUrl(url)
     quality = ''
+    qualities = []
     try:
-        qualities = sorted(data[u'pls'][u'hls'][u'qualities'], key=operator.itemgetter(1), reverse=False)
-        logDbg("available qualities: {}".format(qualities))
-        quality = qualities[0]
-        logDbg("max quality: {}".format(quality))
-    except:
         qualities = sorted(data[u'data'][u'mp4'].keys(), key=operator.itemgetter(1), reverse=False)
-        quality = qualities[0]
-    liz = ''
+    except:
+        qualities = sorted(data[u'pls'][u'hls'][u'qualities'], key=operator.itemgetter(1), reverse=False)
+    if quality_settings[quality_index] in qualities:
+        quality = quality_settings[quality_index]
+    else:
+        try:
+            # sort available qualities according desired one
+            quality_sorted = quality_settings[quality_index:0:-1]
+            quality_sorted += quality_settings[quality_index+1:]
+            for hasq in quality_sorted:
+                if hasq in qualities:
+                    quality = hasq
+                    break
+        except:
+            # something is wrong, set best quality
+            quality = qualities[0]
+    logDbg("available qualities: {}".format(qualities))
+    logDbg("set quality: {}".format(quality))
+
+    liz = xbmcgui.ListItem()
     try:
         liz = xbmcgui.ListItem(path=data[u'data'][u'mp4'][quality][u'url'], iconImage="DefaultVideo.png")
     except:
