@@ -1,3 +1,3 @@
 <settings>
-    <setting label="30000" id="quality" type="enum" lvalues="30001|30240|30360|30480|30720|31080" default="5" />
+    <setting label="30000" id="quality" type="enum" lvalues="30001|30240|30360|30480|30720|31080" default="31080" />
 </settings>

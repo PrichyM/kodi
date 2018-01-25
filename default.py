@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import urllib2,urllib,re,os,sys
-#from stats import *
 from hashlib import md5
-import xbmcplugin,xbmcgui,xbmcaddon
+import xbmcplugin,xbmcgui,xbmcaddon,xbmc
 import simplejson as json
 from time import time
 import operator
@@ -13,12 +12,13 @@ addon = xbmcaddon.Addon('plugin.video.seznam.zpravy')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
 __settings__ = xbmcaddon.Addon(id='plugin.video.seznam.zpravy')
 home = xbmc.translatePath(__settings__.getAddonInfo('path')).decode("utf-8")
-icon = os.path.join( home, 'icon.png' )
-nexticon = os.path.join( home, 'nextpage.png' )
-fanart = os.path.join( home, 'fanart.jpg' )
+icon = os.path.join(home, 'icon.png')
+nexticon = os.path.join(home, 'nextpage.png')
+fanart = os.path.join(home, 'fanart.jpg')
 scriptname = addon.getAddonInfo('name')
 quality_index = int(addon.getSetting('quality'))
 quality_settings = ['ask', '240p', '360p', '480p', '720p', '1080p']
+live_playlist = os.path.join(home, 'live.m3u8')
 LIMIT = 60
 
 MODE_LIST_SHOWS = 1
@@ -106,32 +106,37 @@ REPL_DICT = {
 def getLS(strid):
     return addon.getLocalizedString(strid)
 
-def notify(msg, timeout = 7000):
-    xbmc.executebuiltin('Notification(%s, %s, %d, %s)'%(scriptname, msg.encode('utf-8'), timeout, addon.getAddonInfo('icon')))
+def notify(msg, timeout=7000):
+    xbmc.executebuiltin('Notification(%s, %s, %d, %s)' % (scriptname, msg.encode('utf-8'), timeout, addon.getAddonInfo('icon')))
     log(msg, xbmc.LOGINFO)
 
 def log(msg, level=xbmc.LOGDEBUG):
-    if type(msg).__name__=='unicode':
+    if type(msg).__name__ == 'unicode':
         msg = msg.encode('utf-8')
-    xbmc.log("[%s] %s"%(scriptname,msg.__str__()), level)
+    xbmc.log("[%s] %s" % (scriptname, msg.__str__()), level)
 
 def logDbg(msg):
-    log(msg,level=xbmc.LOGDEBUG)
+    log(msg, level=xbmc.LOGDEBUG)
 
 def logErr(msg):
-    log(msg,level=xbmc.LOGERROR)
+    log(msg, level=xbmc.LOGERROR)
 
 def makeImageUrl(rawurl):
-    return 'http:'+rawurl.replace('{width}/{height}','360/360')
+    return 'http:'+rawurl.replace('{width}/{height}', '360/360')
 
-def getJsonDataFromUrl(url,passw=False):
+def getJsonDataFromUrl(url, passw=False, hls=False):
     req = urllib2.Request(url)
     req.add_header('User-Agent', _UserAgent_)
     if passw:
+        # Password get from here:
+        # https://github.com/kodi-czsk/plugin.video.dmd-czech.stream/blob/60e6ff4fee3deabe5216e3d9f4b84fc301491a19/default.py
+        # Thanks to Jiri Vyhnalek, creator of stream.cz plugin
         req.add_header('Api-Password', md5('fb5f58a820353bd7095de526253c14fd'+url.split('http://www.stream.cz/API')[1]+str(int(round(int(time())/3600.0/24.0)))).hexdigest())
     response = urllib2.urlopen(req)
     httpdata = response.read()
     response.close()
+    if hls:
+        return httpdata
     httpdata = replaceWords(httpdata, WORD_DIC)
     return json.loads(httpdata)
 
@@ -148,12 +153,14 @@ def html2text(html):
     return text
 
 def listContent():
+    # Get main list
     addDir(u'Vše', __baseurl__ + '/documenttimelines?service=zpravy', MODE_LIST_SHOWS, icon)
     data = getJsonDataFromUrl(__baseurl__ + '/sections?service=zpravy&visible=true&embedded=layout')
     show_name = []
     for item in data[u'_items']:
         show_name.append(item[u'name'])
         addDir(item[u'name'], __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_' + item[u'_id'] + '_zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
+    # if-clauses works as failsafe in case API changes
     if u'Výzva' not in show_name:
         addDir(u'Výzva', __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_5943ae130ed0676f56d916c3_zpravy', MODE_LIST_SHOWS, icon)
     if u'Duel' not in show_name:
@@ -170,9 +177,11 @@ def listShows(url):
         logDbg(item[u'title'])
         if u'documents' in item:
             for article in item[u'documents']:
-                addDir(article[u'title'], __baseurl__ + '/documents/' + str(article['uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date':article[u'dateOfPublication']})
-        else:
-            addDir(item[u'title'], __baseurl__ + '/documents/' + str(item[u'uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date':item[u'dateOfPublication']})
+                if article[u'caption']:
+                    addDir(article[u'title'], __baseurl__ + '/documents/' + str(article['uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date': article[u'dateOfPublication']})
+        elif item[u'caption']:
+            addDir(item[u'title'], __baseurl__ + '/documents/' + str(item[u'uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date': item[u'dateOfPublication']})
+
 
 def listSeasons(url):
     data = getJsonDataFromUrl(url)
@@ -233,7 +242,7 @@ def extract_time(json):
     except KeyError:
         return 0
 
-def resolveVideoLink(url,name,popis):
+def resolveVideoLink(url, name, popis):
     data = getJsonDataFromUrl(url)
     quality = ''
     qualities = []
@@ -260,23 +269,56 @@ def resolveVideoLink(url,name,popis):
 
     liz = xbmcgui.ListItem()
     try:
+        # direct link to mp4 file
         liz = xbmcgui.ListItem(path=data[u'data'][u'mp4'][quality][u'url'], iconImage="DefaultVideo.png")
     except:
-        newUri = data[u'pls'][u'hls'][u'url'].split('|')
-        newUri = newUri[0] + '|hlsp2,h264_aac_720p_ts,3,VOD'
-        # https://v39-ng.sdn.szn.cz/v_39/vmd_ng_5a63741cbf809f537b875e84/1516467228?fl=mdk,01e1b032|hlsp2,h264_aac_720p_ts,3,VOD
-        # -> ../vd_ng_5a63741cbf809f537b875e84_1516467228/h264_aac_720p_ts/228/01e1b032.ts
-        logDbg('Live URL: ' + str(newUri))
-        del newUri
-        #liz = xbmcgui.ListItem(newUri, iconImage="DefaultVideo.png")
-    liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": popis} )
+        # LIVE video
+        liveVideo(data)
+        liz = xbmcgui.ListItem(path=live_playlist, iconImage="DefaultVideo.png")
+        #liz.setProperty('inputstreamaddon', 'inputstream.adaptive')
+        #liz.setProperty('inputstream.adaptive.manifest_type', 'hls')
+        liz.setMimeType('application/vnd.apple.mpegurl')
+        liz.setContentLookup(False)
+
+    liz.setInfo(type="Video", infoLabels={"Title": name, "Plot": popis})
     liz.setProperty('IsPlayable', 'true')
-    liz.setProperty( "icon", thumb )
+    liz.setProperty("icon", thumb)
     xbmcplugin.setResolvedUrl(handle=addonHandle, succeeded=True, listitem=liz)
+
+def liveVideo(data):
+    live_url = data[u'pls'][u'hls'][u'url']
+    live_url = re.sub(r'\bVOD\b', 'EVENT', live_url)
+    logDbg('Live URL: ' + str(live_url))
+    hls = getJsonDataFromUrl(live_url, hls=True)
+    # create local m3u8 playlist
+    f = open(live_playlist, 'w')
+    f.write(hls)
+    f.close()
+    f = open(live_playlist, 'r')
+    content = ''
+    # get base url
+    live_url = re.sub(r'\d+\?.*', '', live_url)
+    logDbg('Live URL - trimmed: ' + str(live_url))
+    for line in f:
+        if re.match(r'^#', line):
+            line = re.sub(r'(.*)(PROGRAM-ID=.*)(BANDWIDTH.*)', r'\1\3', line)
+            content += line
+        else:
+            # transform relative url to absolute
+            content += live_url+line
+    f.close()
+    # rewrite m3u8 file
+    f = open(live_playlist, 'w')
+    f.write(content)
+    f.close()
 
 def selectQuality(url, name):
     data = getJsonDataFromUrl(url)
-    qualities = data[u'data'][u'mp4']
+    qualities = ''
+    try:
+        qualities = data[u'data'][u'mp4']
+    except:
+        qualities = False
 
     def createOrderedList(data, quality):
         logDbg('Quality - always ask: ' + quality)
@@ -289,15 +331,12 @@ def selectQuality(url, name):
             pass
 
     if not qualities:
-        """
         # live video
         liveVideo(data)
         liz = xbmcgui.ListItem(name, path=live_playlist, iconImage="DefaultVideo.png")
         liz.setInfo(type="Video", infoLabels={"Title": name})
         liz.setProperty('isPlayable', 'True')
         xbmcplugin.addDirectoryItem(handle=addonHandle, url=live_playlist, listitem=liz)
-        """
-        pass
     else:
         # order quality heighest -> lowest
         if '1080p' in qualities:
@@ -311,84 +350,86 @@ def selectQuality(url, name):
         if '240p' in qualities:
             createOrderedList(data, '240p')
 
-
 def getParams():
-    param=[]
-    paramstring=sys.argv[2]
-    if len(paramstring)>=2:
-        params=sys.argv[2]
-        cleanedparams=params.replace('?','')
-        if (params[len(params)-1]=='/'):
-            params=params[0:len(params)-2]
-        pairsofparams=cleanedparams.split('&')
-        param={}
+    param = []
+    paramstring = sys.argv[2]
+    if len(paramstring) >= 2:
+        params = sys.argv[2]
+        cleanedparams = params.replace('?', '')
+        if (params[len(params)-1] == '/'):
+            params = params[0:len(params)-2]
+        pairsofparams = cleanedparams.split('&')
+        param = {}
         for i in range(len(pairsofparams)):
-            splitparams={}
-            splitparams=pairsofparams[i].split('=')
-            if (len(splitparams))==2:
-                param[splitparams[0]]=splitparams[1]
+            splitparams = {}
+            splitparams = pairsofparams[i].split('=')
+            if (len(splitparams)) == 2:
+                param[splitparams[0]] = splitparams[1]
     return param
 
 def composePluginUrl(url, mode, name, plot):
     return sys.argv[0]+"?url="+urllib.quote_plus(url.encode('utf-8'))+"&mode="+str(mode)+"&name="+urllib.quote_plus(name.encode('utf-8'))+'&plot='+urllib.quote_plus(plot.encode('utf-8'))
 
-def addItem(name,url,mode,iconimage,desc,isfolder,islatest=False,info={}):
-    u=composePluginUrl(url, mode, name, desc)
-    ok=True
-    liz=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
-    liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": desc } )
+def addItem(name, url, mode, iconimage, desc, isfolder, islatest=False, info={}):
+    u = composePluginUrl(url, mode, name, desc)
+    ok = True
+    liz = xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
+    liz.setInfo(type="Video", infoLabels={"Title": name, "Plot": desc})
     if u'date' in info:
-        liz.setInfo('video', {'date': info[u'date'],'aired': info[u'date'],'premiered': info[u'date'],'dateadded': info[u'date']})
+        liz.setInfo('video', {'date': info[u'date'], 'aired': info[u'date'], 'premiered': info[u'date'], 'dateadded': info[u'date']})
     if u'duration' in info:
         liz.addStreamInfo('video', {'duration': info[u'duration']})
     if iconimage:
-        liz.setProperty( "Fanart_Image", iconimage )
+        liz.setProperty("Fanart_Image", iconimage)
     else:
-        liz.setProperty( "Fanart_Image", fanart )
+        liz.setProperty("Fanart_Image", fanart)
     if not isfolder:
         liz.setProperty("IsPlayable", "true")
         menuitems = []
         if islatest:
-            next_url = composePluginUrl(url,MODE_LIST_NEXT_EPISODES,name,plot)
-            menuitems.append(( getLS(30004).encode('utf-8'), 'XBMC.Container.Update('+next_url+')' ))
+            next_url = composePluginUrl(url, MODE_LIST_NEXT_EPISODES, name, plot)
+            menuitems.append((getLS(30004).encode('utf-8'), 'XBMC.Container.Update('+next_url+')'))
         if quality_index != 0:
-            select_quality_url = composePluginUrl(url,MODE_VIDEOLINK,name,plot)
-            menuitems.append(( getLS(30005).encode('utf-8'), 'XBMC.Container.Update('+select_quality_url+')' ))
+            # create custom context menu item
+            select_quality_url = composePluginUrl(url, MODE_VIDEOLINK, name, plot)
+            menuitems.append((getLS(30005).encode('utf-8'), 'XBMC.Container.Update('+select_quality_url+')'))
         liz.addContextMenuItems(menuitems)
-    ok=xbmcplugin.addDirectoryItem(handle=addonHandle,url=u,listitem=liz,isFolder=isfolder)
+    ok = xbmcplugin.addDirectoryItem(handle=addonHandle, url=u, listitem=liz, isFolder=isfolder)
     return ok
 
-def addDir(name,url,mode,iconimage,plot='',info={}):
+def addDir(name, url, mode, iconimage, plot='', info={}):
     logDbg("addDir(): '"+name+"' url='"+url+"' icon='"+iconimage+"' mode='"+str(mode)+"'")
-    return addItem(name,url,mode,iconimage,plot,True)
+    return addItem(name, url, mode, iconimage, plot, True)
 
-def addUnresolvedLink(name,url,iconimage,plot='',islatest=False,info={}):
-    mode=MODE_RESOLVE_VIDEOLINK
+def addUnresolvedLink(name, url, iconimage, plot='', islatest=False, info={}):
+    mode = MODE_RESOLVE_VIDEOLINK
     logDbg("addUnresolvedLink(): '"+name+"' url='"+url+"' icon='"+iconimage+"' mode='"+str(mode)+"'")
-    return addItem(name,url,mode,iconimage,plot,False,islatest,info)
+    return addItem(name, url, mode, iconimage, plot, False, islatest, info)
 
-addonHandle=int(sys.argv[1])
-params=getParams()
-url=None
-name=None
-thumb=None
-mode=None
-plot=''
+
+
+addonHandle = int(sys.argv[1])
+params = getParams()
+url = None
+name = None
+thumb = None
+mode = None
+plot = ''
 
 try:
-    url=urllib.unquote_plus(params["url"])
+    url = urllib.unquote_plus(params["url"])
 except:
     pass
 try:
-    name=urllib.unquote_plus(params["name"])
+    name = urllib.unquote_plus(params["name"])
 except:
     pass
 try:
-    plot=urllib.unquote_plus(params["plot"])
+    plot = urllib.unquote_plus(params["plot"])
 except:
     pass
 try:
-    mode=int(params["mode"])
+    mode = int(params["mode"])
 except:
     pass
 
@@ -397,33 +438,35 @@ logDbg("URL: "+str(url))
 logDbg("Name: "+str(name))
 logDbg("Plot: "+str(plot))
 
-if mode==None or url==None or len(url)<1:
-    #STATS("OBSAH", "Function")
+if mode == None or url == None or len(url) < 1:
+    logDbg('listContent()')
     listContent()
 
-elif mode==MODE_LIST_SHOWS:
-    #STATS("LIST_SHOWS", "Function")
-    listShows(url)
+elif mode == MODE_LIST_SHOWS:
+    if url:
+        logDbg('listShows() with url ' + str(url))
+        listShows(url)
 
-elif mode==MODE_LIST_SEASON:
-    #STATS("LIST_SEASON", "Function")
-    listSeasons(url)
+elif mode == MODE_LIST_SEASON:
+    if url:
+        logDbg('listSeasons() with url ' + str(url))
+        listSeasons(url)
 
-elif mode==MODE_LIST_EPISODES:
-    #STATS("LIST_EPISODES", "Function")
+elif mode == MODE_LIST_EPISODES:
+    logDbg('listEpisodes() with url ' + str(url))
     listEpisodes(url)
 
-elif mode==MODE_VIDEOLINK:
+elif mode == MODE_VIDEOLINK:
     if url:
+        logDbg('selectQuality() with url ' + str(url))
         selectQuality(url, name)
 
-elif mode==MODE_RESOLVE_VIDEOLINK:
-    resolveVideoLink(url,name,plot)
-    #STATS(name, "Item")
-    #sys.exit(0)
+elif mode == MODE_RESOLVE_VIDEOLINK:
+    logDbg('resolveVideoLink() with url ' + str(url))
+    resolveVideoLink(url, name, plot)
 
-elif mode==MODE_LIST_NEXT_EPISODES:
-    #STATS("LIST_NEXT_EPISODES", "Function")
+elif mode == MODE_LIST_NEXT_EPISODES:
+    logDbg('listNextEpisodes() with url ' + str(url))
     listNextEpisodes(url)
 
 xbmcplugin.endOfDirectory(addonHandle)
