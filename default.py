@@ -264,8 +264,8 @@ def resolveVideoLink(url, name, popis):
         except:
             # something is wrong, set best quality
             quality = qualities[0]
-    logDbg("available qualities: {}".format(qualities))
-    logDbg("set quality: {}".format(quality))
+    logDbg("available qualities: " + str(qualities))
+    logDbg("set quality: " + str(quality))
 
     liz = xbmcgui.ListItem()
     try:
