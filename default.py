@@ -7,7 +7,7 @@ from time import time
 import operator
 
 __baseurl__ = u'https://apizpravy.seznam.cz/v1'
-_UserAgent_ = u'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
+_UserAgent_ = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
 addon = xbmcaddon.Addon('plugin.video.seznam.zpravy')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
 __settings__ = xbmcaddon.Addon(id='plugin.video.seznam.zpravy')
@@ -186,10 +186,10 @@ def listShows(url):
                             continue
                     documents_url = __baseurl__ + u'/documents/' + str(article['uid']) + u'?embedded=layout,service,authors,series,content.properties.embeddedDocument.service'
                     isFolder = shouldFolder(documents_url)
-                    if isFolder:
+                    if isFolder is True:
                         addDir(article[u'title'], documents_url, MODE_LIST_SEASON, u'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date': article[u'dateOfPublication']})
                     else:
-                        getDetails(documents_url)
+                        getDetails(isFolder)
         elif item[u'caption']:
             if page > 1:
                 count += 1
@@ -197,10 +197,10 @@ def listShows(url):
                     continue
             documents_url = __baseurl__ + u'/documents/' + str(item[u'uid']) + u'?embedded=layout,service,authors,series,content.properties.embeddedDocument.service'
             isFolder = shouldFolder(documents_url)
-            if isFolder:
+            if isFolder is True:
                 addDir(item[u'title'], documents_url, MODE_LIST_SEASON, u'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date': item[u'dateOfPublication']})
             else:
-                getDetails(documents_url)
+                getDetails(isFolder)
     if url != __baseurl__ + u'/documenttimelines?service=zpravy':
         addDir(u'[B][COLOR blue]'+getLS(30004)+u' >>[/COLOR][/B]', url, MODE_LIST_NEXT_EPISODES, nexticon)
 
@@ -248,10 +248,11 @@ def shouldFolder(url):
 
     if folder_list.count(True) > 1:
         return True
-    return False
+    return data
 
-def getDetails(url):
-    data = getJsonDataFromUrl(url)
+def getDetails(data, getJson=False):
+    if getJson:
+        data = getJsonDataFromUrl(data)
     name = data[u'title']
     stream_url = ''
     imageicon = ''
@@ -521,7 +522,7 @@ elif mode == MODE_LIST_SHOWS:
 elif mode == MODE_LIST_SEASON:
     if url:
         logDbg('getDetails() with url ' + str(url))
-        getDetails(url)
+        getDetails(url, True)
 
 elif mode == MODE_LIST_EPISODES:
     logDbg('listEpisodes() with url ' + str(url))
