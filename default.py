@@ -6,8 +6,8 @@ import simplejson as json
 from time import time
 import operator
 
-__baseurl__ = 'https://apizpravy.seznam.cz/v1'
-_UserAgent_ = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
+__baseurl__ = u'https://apizpravy.seznam.cz/v1'
+_UserAgent_ = u'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
 addon = xbmcaddon.Addon('plugin.video.seznam.zpravy')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
 __settings__ = xbmcaddon.Addon(id='plugin.video.seznam.zpravy')
@@ -19,7 +19,8 @@ scriptname = addon.getAddonInfo('name')
 quality_index = int(addon.getSetting('quality'))
 quality_settings = ['ask', '240p', '360p', '480p', '720p', '1080p']
 live_playlist = os.path.join(home, 'live.m3u8')
-LIMIT = 60
+page = 1
+LIMIT = 10
 
 MODE_LIST_SHOWS = 1
 MODE_LIST_SEASON = 2
@@ -154,36 +155,102 @@ def html2text(html):
 
 def listContent():
     # Get main list
-    addDir(u'Vše', __baseurl__ + '/documenttimelines?service=zpravy', MODE_LIST_SHOWS, icon)
-    data = getJsonDataFromUrl(__baseurl__ + '/sections?service=zpravy&visible=true&embedded=layout')
+    addDir(u'Vše', __baseurl__ + u'/documenttimelines?service=zpravy', MODE_LIST_SHOWS, icon)
+    data = getJsonDataFromUrl(__baseurl__ + u'/sections?service=zpravy&visible=true&embedded=layout')
     show_name = []
     for item in data[u'_items']:
         show_name.append(item[u'name'])
-        addDir(item[u'name'], __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_' + item[u'_id'] + '_zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
+        addDir(item[u'name'], __baseurl__ + u'/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + u'&itemIds=section_' + item[u'_id'] + u'_zpravy&embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SHOWS, icon)
     # if-clauses works as failsafe in case API changes
     if u'Výzva' not in show_name:
-        addDir(u'Výzva', __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_5943ae130ed0676f56d916c3_zpravy', MODE_LIST_SHOWS, icon)
+        addDir(u'Výzva', __baseurl__ + u'/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + u'&itemIds=section_5943ae130ed0676f56d916c3_zpravy', MODE_LIST_SHOWS, icon)
     if u'Duel' not in show_name:
-        addDir(u'Duel', __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_5943ae7fe0cf3d6bfb3df94b_zpravy', MODE_LIST_SHOWS, icon)
+        addDir(u'Duel', __baseurl__ + u'/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + u'&itemIds=section_5943ae7fe0cf3d6bfb3df94b_zpravy', MODE_LIST_SHOWS, icon)
     if u'Večerní zprávy' not in show_name:
-        addDir(u'Večerní zprávy', __baseurl__ + '/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + '&itemIds=section_5811346fcb2d9825d2c4ee92_zpravy', MODE_LIST_SHOWS, icon)
+        addDir(u'Večerní zprávy', __baseurl__ + u'/documenttimelines?service=zpravy&maxItems=' + str(LIMIT) + u'&itemIds=section_5811346fcb2d9825d2c4ee92_zpravy', MODE_LIST_SHOWS, icon)
     del show_name
 
 def listShows(url):
     data = getJsonDataFromUrl(url)
     items = data[u'_items']
-    #logDbg(items)
+    global page
+    count = 0
     for item in items:
         logDbg(item[u'title'])
         if u'documents' in item:
             for article in item[u'documents']:
                 if article[u'caption']:
-                    addDir(article[u'title'], __baseurl__ + '/documents/' + str(article['uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date': article[u'dateOfPublication']})
+                    if page > 1:
+                        count += 1
+                        if count <= (LIMIT * (page - 1)):
+                            continue
+                    documents_url = __baseurl__ + u'/documents/' + str(article['uid']) + u'?embedded=layout,service,authors,series,content.properties.embeddedDocument.service'
+                    isFolder = shouldFolder(documents_url)
+                    if isFolder:
+                        addDir(article[u'title'], documents_url, MODE_LIST_SEASON, u'https:' + article[u'caption'][u'url'], article[u'perex'], info={'date': article[u'dateOfPublication']})
+                    else:
+                        getDetails(documents_url)
         elif item[u'caption']:
-            addDir(item[u'title'], __baseurl__ + '/documents/' + str(item[u'uid']) + '?embedded=layout,service,authors,series,content.properties.embeddedDocument.service', MODE_LIST_SEASON, 'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date': item[u'dateOfPublication']})
+            if page > 1:
+                count += 1
+                if count <= (LIMIT * (page - 1)):
+                    continue
+            documents_url = __baseurl__ + u'/documents/' + str(item[u'uid']) + u'?embedded=layout,service,authors,series,content.properties.embeddedDocument.service'
+            isFolder = shouldFolder(documents_url)
+            if isFolder:
+                addDir(item[u'title'], documents_url, MODE_LIST_SEASON, u'https:' + item[u'caption'][u'url'], item[u'perex'], info={'date': item[u'dateOfPublication']})
+            else:
+                getDetails(documents_url)
+    if url != __baseurl__ + u'/documenttimelines?service=zpravy':
+        addDir(u'[B][COLOR blue]'+getLS(30004)+u' >>[/COLOR][/B]', url, MODE_LIST_NEXT_EPISODES, nexticon)
 
 
-def listSeasons(url):
+def listNextEpisodes(url):
+    global page
+    prev_page = re.sub(r'.*&maxItems=(\d\d).*', r'\1', url)
+    for items in range(10, 61, 10):
+        if int(prev_page) == items:
+            page = items // 10 + 1
+    url = re.sub(r'&maxItems=\d\d', r'&maxItems=' + str(LIMIT*page), url)
+    logDbg('global page value: ' + str(page))
+    logDbg('calling listShows() from  listNextEpisodes() with url: ' + str(url))
+    listShows(url)
+
+def shouldFolder(url):
+    data = getJsonDataFromUrl(url)
+    folder_list = []
+    if u'video' in data[u'caption']:
+        stream_url = data[u'caption'][u'video'][u'sdn']
+        if stream_url:
+            folder_list.append(True)
+    elif u'embedUrl' in data[u'caption']:
+        embed_id = str(data[u'caption'][u'embed'])
+        streamcz_json = getJsonDataFromUrl('http://www.stream.cz/API/episode_only/' + embed_id, passw=True)
+        stream_url = streamcz_json[u'superplaylist']
+        if stream_url:
+            folder_list.append(True)
+    elif u'liveStreamUrl' in data[u'caption']:
+        stream_url = data[u'caption'][u'liveStreamUrl']
+        if stream_url:
+            folder_list.append(True)
+
+    for item in data[u'content']:
+        prop = item[u'properties']
+        if u'media' in prop:
+            if prop[u'media'] and (u'video' in prop[u'media']):
+                stream_url = prop[u'media'][u'video'][u'sdn']
+                if stream_url:
+                    folder_list.append(True)
+            elif prop[u'media'] and (u'liveStreamUrl' in prop[u'media']):
+                stream_url = prop[u'media'][u'liveStreamUrl']
+                if stream_url:
+                    folder_list.append(True)
+
+    if folder_list.count(True) > 1:
+        return True
+    return False
+
+def getDetails(url):
     data = getJsonDataFromUrl(url)
     name = data[u'title']
     stream_url = ''
@@ -191,46 +258,50 @@ def listSeasons(url):
     title = data[u'captionTitle']
     info = {}
     if u'video' in data[u'caption']:
-        stream_url = data[u'caption'][u'video'][u'sdn'] + 'spl,1,https,VOD'
+        stream_url = data[u'caption'][u'video'][u'sdn']
         imageicon = 'https:' + data[u'caption'][u'video'][u'poster'][u'url']
         info = {'duration': data[u'caption'][u'video'][u'videoInfo'][u'durationS'], 'date':data[u'dateOfPublication']}
     elif u'embedUrl' in data[u'caption']:
         # embedded video from stream.cz
         embed_id = str(data[u'caption'][u'embed'])
         streamcz_json = getJsonDataFromUrl('http://www.stream.cz/API/episode_only/' + embed_id, passw=True)
-        stream_url = streamcz_json[u'superplaylist'] + 'spl,1,https,VOD'
+        stream_url = streamcz_json[u'superplaylist']
         imageicon = 'https:' + data[u'caption'][u'url']
         info = {u'date':data[u'dateOfPublication']}
     elif u'liveStreamUrl' in data[u'caption']:
-        stream_url = data[u'caption'][u'liveStreamUrl'] + 'spl,1,https,VOD'
+        stream_url = data[u'caption'][u'liveStreamUrl']
         imageicon = 'https:' + data[u'caption'][u'url']
         info={u'date':data[u'dateOfPublication']}
-    if quality_index == 0:
+    if quality_index == 0 and stream_url:
+        stream_url += 'spl,1,https,VOD'
         addDir(name, stream_url, MODE_VIDEOLINK, imageicon)
-    else:
+    elif stream_url:
+        stream_url += 'spl,1,https,VOD'
         addUnresolvedLink(name, stream_url, imageicon, title, info=info)
 
     for item in data[u'content']:
         prop = item[u'properties']
         if u'media' in prop:
-            #logDbg(prop)
+            stream_url = ''
             if prop[u'media'] and (u'video' in prop[u'media']):
                 name = prop[u'media'][u'title']
-                stream_url = prop[u'media'][u'video'][u'sdn'] + 'spl,1,https,VOD'
+                stream_url = prop[u'media'][u'video'][u'sdn']
                 imageicon = 'https:' + prop[u'media'][u'video'][u'poster'][u'url']
                 title = prop[u'text']
                 info={'duration': prop[u'media'][u'video'][u'videoInfo'][u'durationS'], 'date':data[u'dateOfPublication']}
             elif prop[u'media'] and (u'liveStreamUrl' in prop[u'media']):
                 name = u'LIVE: ' + prop[u'media'][u'title']
-                stream_url = prop[u'media'][u'liveStreamUrl'] + 'spl,1,https,VOD'
+                stream_url = prop[u'media'][u'liveStreamUrl']
                 imageicon = 'https:' + prop[u'media'][u'url']
                 title = prop[u'media'][u'title']
                 info={'date':data[u'dateOfPublication']}
-            if quality_index == 0:
+            if quality_index == 0 and stream_url:
                 # solution for 'always ask for quality' option
+                stream_url += 'spl,1,https,VOD'
                 addDir(name, stream_url, MODE_VIDEOLINK, imageicon)
-            else:
+            elif stream_url:
                 # quality is set in settings
+                stream_url += 'spl,1,https,VOD'
                 addUnresolvedLink(name, stream_url, imageicon, title, info=info)
 
 def extract_time(json):
@@ -449,8 +520,8 @@ elif mode == MODE_LIST_SHOWS:
 
 elif mode == MODE_LIST_SEASON:
     if url:
-        logDbg('listSeasons() with url ' + str(url))
-        listSeasons(url)
+        logDbg('getDetails() with url ' + str(url))
+        getDetails(url)
 
 elif mode == MODE_LIST_EPISODES:
     logDbg('listEpisodes() with url ' + str(url))
@@ -466,7 +537,8 @@ elif mode == MODE_RESOLVE_VIDEOLINK:
     resolveVideoLink(url, name, plot)
 
 elif mode == MODE_LIST_NEXT_EPISODES:
-    logDbg('listNextEpisodes() with url ' + str(url))
-    listNextEpisodes(url)
+    if url:
+        logDbg('listNextEpisodes() with url ' + str(url))
+        listNextEpisodes(url)
 
 xbmcplugin.endOfDirectory(addonHandle)
